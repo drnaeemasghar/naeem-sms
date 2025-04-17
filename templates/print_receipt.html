@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receipt - Naeem Store Management System</title>
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        
+        .receipt {
+            max-width: 400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .receipt-header {
+            text-align: center;
+            border-bottom: 1px dashed #ccc;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .receipt-header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        
+        .receipt-header p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .customer-info {
+            margin-bottom: 20px;
+        }
+        
+        .receipt-items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        .receipt-items th, .receipt-items td {
+            text-align: left;
+            padding: 8px 4px;
+        }
+        
+        .receipt-items th {
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .receipt-items tr:last-child td {
+            border-bottom: 1px dashed #ccc;
+        }
+        
+        .receipt-total {
+            margin-top: 10px;
+        }
+        
+        .receipt-total div {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        
+        .receipt-footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 14px;
+        }
+        
+        .print-btn {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        @media print {
+            .print-btn {
+                display: none;
+            }
+            
+            body {
+                background-color: white;
+                padding: 0;
+            }
+            
+            .receipt {
+                box-shadow: none;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <div class="receipt-header">
+            <h1>Naeem Store</h1>
+            <p>123 Main Street, City</p>
+            <p>Phone: (123) 456-7890</p>
+            <p>{{ date }}</p>
+        </div>
+        
+        <div class="customer-info">
+            <p><strong>Customer:</strong> {{ customer_name }}</p>
+        </div>
+        
+        <table class="receipt-items">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products %}
+                <tr>
+                    <td>{{ product.name }}</td>
+                    <td>{{ product.quantity }}</td>
+                    <td>${{ product.price }}</td>
+                    <td>${{ product.total }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div class="receipt-total">
+            <div>
+                <span>Subtotal:</span>
+                <span>${{ total_price }}</span>
+            </div>
+            
+            {% if discount|float > 0 %}
+            <div>
+                <span>Discount ({{ coupon }}):</span>
+                <span>${{ discount }}</span>
+            </div>
+            {% endif %}
+            
+            <div style="font-weight: bold; font-size: 18px;">
+                <span>Total:</span>
+                <span>${{ final_price }}</span>
+            </div>
+        </div>
+        
+        <div class="receipt-footer">
+            <p>Thank you for shopping at Naeem Store!</p>
+            <p>Please come again</p>
+        </div>
+    </div>
+    
+    <button class="print-btn" onclick="window.print()">Print Receipt</button>
+</body>
+</html>

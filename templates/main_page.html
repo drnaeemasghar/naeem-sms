@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Point of Sale - Naeem Store Management System</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        {% include 'navbar.html' %}
+        
+        <main class="main-content pos-layout">
+            <div class="page-header">
+                <h1>Point of Sale</h1>
+            </div>
+            
+            <div class="pos-container">
+                <div class="pos-left">
+                    <div class="camera-container">
+                        <h2>Scan QR Code</h2>
+                        <div id="camera-view">
+                            <video id="qr-video" autoplay playsinline></video>
+                            <canvas id="qr-canvas" style="display: none;"></canvas>
+                        </div>
+                        <button id="start-camera" class="btn primary-btn">Start Camera</button>
+                        <p class="camera-help">Point the camera at a product QR code to add it to the cart</p>
+                    </div>
+                    
+                    <div class="manual-add">
+                        <h2>Manual Add</h2>
+                        <div class="search-container">
+                            <input type="text" id="product-search" placeholder="Search for a product...">
+                            <div id="search-suggestions" class="search-suggestions"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="pos-right">
+                    <div class="cart-container">
+                        <div class="cart-header">
+                            <h2>Shopping Cart</h2>
+                            <div class="customer-info">
+                                <label for="customer-name">Customer Name:</label>
+                                <input type="text" id="customer-name" placeholder="Guest">
+                            </div>
+                        </div>
+                        
+                        <div class="cart-items">
+                            <table class="cart-table">
+                                <thead>
+                                    <tr>
+                                        <th>Sr</th>
+                                        <th>Name</th>
+                                        <th>Quantity</th>
+                                        <th>Price</th>
+                                        <th>Total</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cart-list">
+                                    <tr class="empty-cart">
+                                        <td colspan="6">Cart is empty. Scan products or add them manually.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="cart-summary">
+                            <div class="summary-row">
+                                <span>Total:</span>
+                                <span id="cart-total">$0.00</span>
+                            </div>
+                            
+                            <div class="coupon-container">
+                                <div class="coupon-input">
+                                    <input type="text" id="coupon-code" placeholder="Enter coupon code">
+                                    <button id="apply-coupon" class="btn secondary-btn">Apply</button>
+                                </div>
+                                <div id="coupon-info" class="coupon-info"></div>
+                            </div>
+                            
+                            <div class="summary-row discount-row" style="display: none;">
+                                <span>Discount:</span>
+                                <span id="discount-amount">$0.00</span>
+                            </div>
+                            
+                            <div class="summary-row final-row">
+                                <span>Final Total:</span>
+                                <span id="final-total">$0.00</span>
+                            </div>
+                        </div>
+                        
+                        <div class="cart-actions">
+                            <button id="print-receipt" class="btn secondary-btn" disabled>Print Receipt</button>
+                            <button id="complete-sale" class="btn primary-btn" disabled>Complete Sale</button>
+                            <button id="clear-cart" class="btn danger-btn" disabled>Clear Cart</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script>
+        // Global variables
+        let cart = [];
+        let couponDiscount = 0;
+        let couponCode = '';
+        
+        // DOM elements
+        const cartList = document.getElementById('cart-list');
+        const cartTotal = document.getElementById('cart-total');
+        const finalTotal = document.getElementById('final-total');
+        const discountRow = document.querySelector('.discount-row');
+        const discountAmount = document.getElementById('discount-amount');
+        const customerName = document.getElementById('customer-name');
+        const couponCodeInput = document.getElementById('coupon-code');
+        const applyCouponBtn = document.getElementById('apply-coupon');
+        const couponInfo = document.getElementById('coupon-info');
+        const printReceiptBtn = document.getElementById('print-receipt');
+        const completeSaleBtn = document.getElementById('complete-sale');
+        const clearCartBtn = document.getElementById('clear-cart');
+        
+        // QR Scanner
+        const video = document.getElementById('qr-video');
+        const canvas = document.getElementById('qr-canvas');
+        const ctx = canvas.getContext('2d');
+        const startCameraBtn = document.getElementById('start-camera');
+        
+        let scanning = false;
+        
+        startCameraBtn.addEventListener('click', function() {
+            if (scanning) {
+                stopCamera();
+                startCameraBtn.textContent = 'Start Camera';
+                scanning = false;
+            } else {
+                startCamera();
+                startCameraBtn.textContent = 'Stop Camera';
+                scanning = true;
+            }
+        });
+        
+        function startCamera() {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                .then(function(stream) {
+                    video.srcObject = stream;
+                    video.setAttribute('playsinline', true);
+                    video.play();
+                    requestAnimationFrame(tick);
+                })
+                .catch(function(err) {
+                    console.error('Error accessing camera:', err);
+                    alert('Could not access the camera. Please make sure you have granted camera permissions.');
+                });
+        }
+        
+        function stopCamera() {
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+        }
+        
+        function tick() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+                
+                if (code) {
+                    // We found a QR code
+                    const productId = code.data;
+                    
+                    // Check if it's a valid product ID (numeric)
+                    if (/^\d+$/.test(productId)) {
+                        // Fetch product details and add to cart
+                        fetchProductAndAddToCart(productId);
+                        
+                        // Pause scanning briefly to avoid multiple scans of the same code
+                        scanning = false;
+                        startCameraBtn.textContent = 'Start Camera';
+                        stopCamera();
+                        
+                        setTimeout(() => {
+                            if (!scanning) {
+                                startCamera();
+                                startCameraBtn.textContent = 'Stop Camera';
+                                scanning = true;
+                            }
+                        }, 2000);
+                    }
+                }
+            }
+            
+            if (scanning) {
+                requestAnimationFrame(tick);
+            }
+        }
+        
+        function fetchProductAndAddToCart(productId) {
+            fetch(`/get_product/${productId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addToCart(data.product);
+                    } else {
+                        alert('Product not found');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching product:', error);
+                    alert('Error fetching product details');
+                });
+        }
+        
+        // Manual product search
+        const searchInput = document.getElementById('product-search');
+        const searchSuggestions = document.getElementById('search-suggestions');
+        
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            
+            if (query.length < 2) {
+                searchSuggestions.innerHTML = '';
+                searchSuggestions.style.display = 'none';
+                return;
+            }
+            
+            // Fetch search results
+            fetch(`/search_products?query=${query}`)
+                .then(response => response.json())
+                .then(products => {
+                    // Display suggestions
+                    searchSuggestions.innerHTML = '';
+                    
+                    if (products.length > 0) {
+                        products.forEach(product => {
+                            const suggestion = document.createElement('div');
+                            suggestion.classList.add('search-suggestion');
+                            suggestion.textContent = `${product.name} - $${product.price}`;
+                            suggestion.addEventListener('click', function() {
+                                searchInput.value = '';
+                                searchSuggestions.style.display = 'none';
+                                addToCart(product);
+                            });
+                            searchSuggestions.appendChild(suggestion);
+                        });
+                        searchSuggestions.style.display = 'block';
+                    } else {
+                        searchSuggestions.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error searching products:', error);
+                });
+        });
+        
+        // Close suggestions when clicking outside
+        document.addEventListener('click', function(event) {
+            if (event.target !== searchInput && event.target !== searchSuggestions) {
+                searchSuggestions.style.display = 'none';
+            }
+        });
+        
+        // Cart functions
+        function addToCart(product) {
+            // Check if product is already in cart
+            const existingProduct = cart.find(item => item.id === product.id);
+            
+            if (existingProduct) {
+                // Increment quantity
+                existingProduct.quantity += 1;
+                existingProduct.total = (existingProduct.quantity * existingProduct.price).toFixed(2);
+            } else {
+                // Add new product to cart
+                cart.push({
+                    id: product.id,
+                    name: product.name,
+                    price: parseFloat(product.price),
+                    quantity: 1,
+                    total: parseFloat(product.price).toFixed(2)
+                });
+            }
+            
+            updateCartDisplay();
+        }
+        
+        function updateCartDisplay() {
+            if (cart.length === 0) {
+                cartList.innerHTML = `
+                    <tr class="empty-cart">
+                        <td colspan="6">Cart is empty. Scan products or add them manually.</td>
+                    </tr>
+                `;
+                printReceiptBtn.disabled = true;
+                completeSaleBtn.disabled = true;
+                clearCartBtn.disabled = true;
+            } else {
+                cartList.innerHTML = '';
+                
+                cart.forEach((item, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${item.name}</td>
+                        <td class="quantity-cell">
+                            <button class="qty-btn minus-btn" data-id="${item.id}">-</button>
+                            <input type="number" class="qty-input" value="${item.quantity}" min="1" data-id="${item.id}">
+                            <button class="qty-btn plus-btn" data-id="${item.id}">+</button>
+                        </td>
+                        <td>$${item.price.toFixed(2)}</td>
+                        <td>$${item.total}</td>
+                        <td>
+                            <button class="btn delete-btn small" data-id="${item.id}">×</button>
+                        </td>
+                    `;
+                    cartList.appendChild(row);
+                });
+                
+                // Add event listeners for quantity buttons
+                document.querySelectorAll('.minus-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        updateQuantity(id, -1);
+                    });
+                });
+                
+                document.querySelectorAll('.plus-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        updateQuantity(id, 1);
+                    });
+                });
+                
+                document.querySelectorAll('.qty-input').forEach(input => {
+                    input.addEventListener('change', function() {
+                        const id = this.getAttribute('data-id');
+                        const newQty = parseInt(this.value);
+                        if (newQty > 0) {
+                            setQuantity(id, newQty);
+                        } else {
+                            this.value = 1;
+                            setQuantity(id, 1);
+                        }
+                    });
+                });
+                
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        removeFromCart(id);
+                    });
+                });
+                
+                printReceiptBtn.disabled = false;
+                completeSaleBtn.disabled = false;
+                clearCartBtn.disabled = false;
+            }
+            
+            updateTotals();
+        }
+        
+        function updateQuantity(id, change) {
+            const item = cart.find(item => item.id === id);
+            if (item) {
+                const newQty = item.quantity + change;
+                if (newQty > 0) {
+                    item.quantity = newQty;
+                    item.total = (item.quantity * item.price).toFixed(2);
+                    updateCartDisplay();
+                }
+            }
+        }
+        
+        function setQuantity(id, quantity) {
+            const item = cart.find(item => item.id === id);
+            if (item) {
+                item.quantity = quantity;
+                item.total = (item.quantity * item.price).toFixed(2);
+                updateCartDisplay();
+            }
+        }
+        
+        function removeFromCart(id) {
+            cart = cart.filter(item => item.id !== id);
+            updateCartDisplay();
+        }
+        
+        function updateTotals() {
+            const total = cart.reduce((sum, item) => sum + parseFloat(item.total), 0);
+            cartTotal.textContent = `$${total.toFixed(2)}`;
+            
+            let finalAmount = total;
+            
+            if (couponDiscount > 0) {
+                const discount = (total * couponDiscount / 100);
+                discountAmount.textContent = `$${discount.toFixed(2)}`;
+                discountRow.style.display = 'flex';
+                finalAmount = total - discount;
+            } else {
+                discountRow.style.display = 'none';
+            }
+            
+            finalTotal.textContent = `$${finalAmount.toFixed(2)}`;
+        }
+        
+        // Coupon handling
+        applyCouponBtn.addEventListener('click', function() {
+            const code = couponCodeInput.value.trim().toUpperCase();
+            
+            if (!code) {
+                couponInfo.textContent = 'Please enter a coupon code';
+                couponInfo.className = 'coupon-info error';
+                return;
+            }
+            
+            fetch(`/check_coupon/${code}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        couponDiscount = parseFloat(data.percentage);
+                        couponCode = data.coupon;
+                        couponInfo.textContent = `Coupon applied: ${couponDiscount}% discount`;
+                        couponInfo.className = 'coupon-info success';
+                        updateTotals();
+                    } else {
+                        couponDiscount = 0;
+                        couponCode = '';
+                        couponInfo.textContent = 'Invalid coupon code';
+                        couponInfo.className = 'coupon-info error';
+                        updateTotals();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking coupon:', error);
+                    couponInfo.textContent = 'Error checking coupon';
+                    couponInfo.className = 'coupon-info error';
+                });
+        });
+        
+        // Print receipt
+        printReceiptBtn.addEventListener('click', function() {
+            if (cart.length === 0) return;
+            
+            const name = customerName.value.trim() || 'Guest';
+            const total = cart.reduce((sum, item) => sum + parseFloat(item.total), 0);
+            const discount = couponDiscount > 0 ? (total * couponDiscount / 100) : 0;
+            const final = total - discount;
+            
+            // Open receipt in new window
+            const receiptUrl = `/print_receipt?` + new URLSearchParams({
+                customer_name: name,
+                products: JSON.stringify(cart),
+                total_price: total.toFixed(2),
+                discount: discount.toFixed(2),
+                coupon: couponCode,
+                final_price: final.toFixed(2)
+            });
+            
+            window.open(receiptUrl, '_blank');
+        });
+        
+        // Complete sale
+        completeSaleBtn.addEventListener('click', function() {
+            if (cart.length === 0) return;
+            
+            const name = customerName.value.trim() || 'Guest';
+            const total = cart.reduce((sum, item) => sum + parseFloat(item.total), 0);
+            const discount = couponDiscount > 0 ? (total * couponDiscount / 100) : 0;
+            const final = total - discount;
+            
+            // Send sale data to server
+            fetch('/complete_sale', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    customer_name: name,
+                    products: cart,
+                    total_price: total.toFixed(2),
+                    discount: discount.toFixed(2),
+                    coupon: couponCode,
+                    final_price: final.toFixed(2)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Sale completed successfully!');
+                    clearCart();
+                } else {
+                    alert('Error completing sale: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error completing sale:', error);
+                alert('Error completing sale. Please try again.');
+            });
+        });
+        
+        // Clear cart
+        clearCartBtn.addEventListener('click', clearCart);
+        
+        function clearCart() {
+            cart = [];
+            couponDiscount = 0;
+            couponCode = '';
+            couponCodeInput.value = '';
+            couponInfo.textContent = '';
+            couponInfo.className = 'coupon-info';
+            customerName.value = '';
+            updateCartDisplay();
+        }
+        
+        // Initialize
+        updateCartDisplay();
+    </script>
+</body>
+</html>

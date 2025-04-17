@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Product - Naeem Store Management System</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        {% include 'navbar.html' %}
+        
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Add Product</h1>
+                <a href="{{ url_for('product_list') }}" class="btn secondary-btn">View Product List</a>
+            </div>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <div class="card">
+                <form method="POST" action="{{ url_for('add_product') }}" class="product-form">
+                    <div class="form-group">
+                        <label for="name">Product Name</label>
+                        <input type="text" id="name" name="name" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="price">Price</label>
+                        <input type="number" id="price" name="price" step="0.01" min="0" required>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn primary-btn">Add Product</button>
+                        <button type="reset" class="btn secondary-btn">Reset</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="info-card">
+                <h3>About QR Codes</h3>
+                <p>When you add a product, a unique QR code will be automatically generated for it. You can print these QR codes and attach them to your products for easy scanning at checkout.</p>
+                <p>The QR code contains the product ID, which is used to quickly identify the product in the system.</p>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

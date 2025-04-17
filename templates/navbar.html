@@ -1,0 +1,16 @@
+<nav class="navbar">
+    <div class="navbar-brand">
+        <a href="{{ url_for('dashboard') }}">Naeem Store</a>
+    </div>
+    
+    <div class="navbar-menu">
+        <a href="{{ url_for('dashboard') }}" class="nav-item">Dashboard</a>
+        <a href="{{ url_for('main_page') }}" class="nav-item">Point of Sale</a>
+        <a href="{{ url_for('add_product') }}" class="nav-item">Add Product</a>
+        <a href="{{ url_for('product_list') }}" class="nav-item">Product List</a>
+    </div>
+    
+    <div class="navbar-end">
+        <a href="{{ url_for('logout') }}" class="nav-item logout-btn">Logout</a>
+    </div>
+</nav>

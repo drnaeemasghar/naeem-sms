@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product List - Naeem Store Management System</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        {% include 'navbar.html' %}
+        
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Product List</h1>
+                <a href="{{ url_for('add_product') }}" class="btn primary-btn">Add New Product</a>
+            </div>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <div class="search-container">
+                <input type="text" id="product-search" placeholder="Search products by name or price...">
+                <div id="search-suggestions" class="search-suggestions"></div>
+            </div>
+            
+            <div class="product-list-container">
+                <table class="product-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Price</th>
+                            <th>QR Code</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="product-list">
+                        {% if products %}
+                            {% for product in products %}
+                                <tr>
+                                    <td>{{ product.id }}</td>
+                                    <td>{{ product.name }}</td>
+                                    <td>${{ product.price }}</td>
+                                    <td>
+                                        <button class="btn qr-btn" data-qr="{{ product.qr_url }}">View QR</button>
+                                    </td>
+                                    <td class="actions-cell">
+                                        <a href="{{ url_for('edit_product', product_id=product.id) }}" class="btn edit-btn">Edit</a>
+                                        <a href="{{ url_for('delete_product', product_id=product.id) }}" class="btn delete-btn" onclick="return confirm('Are you sure you want to delete this product?')">Delete</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="no-products">No products found. <a href="{{ url_for('add_product') }}">Add a product</a>.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- QR Code Modal -->
+            <div id="qr-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close-modal">&times;</span>
+                    <h2>Product QR Code</h2>
+                    <div class="qr-container">
+                        <img id="qr-image" src="/placeholder.svg" alt="Product QR Code">
+                    </div>
+                    <p>Print this QR code and attach it to your product for easy scanning.</p>
+                    <button id="print-qr" class="btn primary-btn">Print QR Code</button>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script>
+        // QR Code Modal
+        const modal = document.getElementById('qr-modal');
+        const qrImage = document.getElementById('qr-image');
+        const qrButtons = document.querySelectorAll('.qr-btn');
+        const closeModal = document.querySelector('.close-modal');
+        const printQR = document.getElementById('print-qr');
+        
+        qrButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const qrUrl = this.getAttribute('data-qr');
+                qrImage.src = qrUrl;
+                modal.style.display = 'block';
+            });
+        });
+        
+        closeModal.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+        
+        window.addEventListener('click', function(event) {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+        
+        printQR.addEventListener('click', function() {
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Print QR Code</title>
+                    <style>
+                        body { 
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            height: 100vh;
+                            margin: 0;
+                        }
+                        img {
+                            max-width: 300px;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <img src="${qrImage.src}" alt="Product QR Code">
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                            setTimeout(function() { window.close(); }, 500);
+                        };
+                    </script>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+        });
+        
+        // Search functionality
+        const searchInput = document.getElementById('product-search');
+        const searchSuggestions = document.getElementById('search-suggestions');
+        const productList = document.getElementById('product-list');
+        const originalProducts = Array.from(productList.querySelectorAll('tr'));
+        
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            
+            if (query.length < 2) {
+                searchSuggestions.innerHTML = '';
+                searchSuggestions.style.display = 'none';
+                
+                // Restore original product list
+                productList.innerHTML = '';
+                originalProducts.forEach(product => {
+                    productList.appendChild(product.cloneNode(true));
+                });
+                
+                // Reattach event listeners to QR buttons
+                document.querySelectorAll('.qr-btn').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const qrUrl = this.getAttribute('data-qr');
+                        qrImage.src = qrUrl;
+                        modal.style.display = 'block';
+                    });
+                });
+                
+                return;
+            }
+            
+            // Fetch search results
+            fetch(`/search_products?query=${query}`)
+                .then(response => response.json())
+                .then(products => {
+                    // Display suggestions
+                    searchSuggestions.innerHTML = '';
+                    
+                    if (products.length > 0) {
+                        products.slice(0, 5).forEach(product => {
+                            const suggestion = document.createElement('div');
+                            suggestion.classList.add('search-suggestion');
+                            suggestion.textContent = `${product.name} - $${product.price}`;
+                            suggestion.addEventListener('click', function() {
+                                searchInput.value = product.name;
+                                searchSuggestions.style.display = 'none';
+                                
+                                // Filter product list to show only this product
+                                updateProductList([product]);
+                            });
+                            searchSuggestions.appendChild(suggestion);
+                        });
+                        searchSuggestions.style.display = 'block';
+                    } else {
+                        searchSuggestions.style.display = 'none';
+                    }
+                    
+                    // Update product list
+                    updateProductList(products);
+                })
+                .catch(error => {
+                    console.error('Error searching products:', error);
+                });
+        });
+        
+        function updateProductList(products) {
+            productList.innerHTML = '';
+            
+            if (products.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td colspan="5" class="no-products">No products found matching your search.</td>`;
+                productList.appendChild(row);
+                return;
+            }
+            
+            products.forEach(product => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${product.id}</td>
+                    <td>${product.name}</td>
+                    <td>$${product.price}</td>
+                    <td>
+                        <button class="btn qr-btn" data-qr="${product.qr_url}">View QR</button>
+                    </td>
+                    <td class="actions-cell">
+                        <a href="/edit_product/${product.id}" class="btn edit-btn">Edit</a>
+                        <a href="/delete_product/${product.id}" class="btn delete-btn" onclick="return confirm('Are you sure you want to delete this product?')">Delete</a>
+                    </td>
+                `;
+                productList.appendChild(row);
+            });
+            
+            // Reattach event listeners to QR buttons
+            document.querySelectorAll('.qr-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const qrUrl = this.getAttribute('data-qr');
+                    qrImage.src = qrUrl;
+                    modal.style.display = 'block';
+                });
+            });
+        }
+        
+        // Close suggestions when clicking outside
+        document.addEventListener('click', function(event) {
+            if (event.target !== searchInput && event.target !== searchSuggestions) {
+                searchSuggestions.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
