@@ -31,7 +31,7 @@ fonttools==4.57.0
 fpdf==1.7.2
 future==1.0.0
 google-api-core==2.24.2
-google-api-python-client==2.126.0
+google-api-python-client==2.97.0
 google-auth==2.22.0
 google-auth-httplib2==0.1.0
 google-auth-oauthlib==1.0.0
@@ -88,7 +88,6 @@ requests-oauthlib==2.0.0
 rsa==4.9
 simple-websocket==1.1.0
 six==1.17.0
-tk==0.1.0
 tqdm==4.67.1
 ttkbootstrap==1.10.1
 typing_extensions==4.12.2
@@ -98,4 +97,3 @@ urllib3==1.26.20
 websockets==13.1
 wsproto==1.2.0
 yt-dlp==2024.10.7
-pyzbar==0.1.9
